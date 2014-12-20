@@ -1,29 +1,20 @@
-# Analysis on Storm data
-Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
-
-This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
-
-This study is to answer the following questions
-
-- Across the United States, which types of events are most harmful with respect to population health?
-
-- Across the United States, which types of events have the greatest economic consequences?
+# Impact of Severe Weather Events on Public Health and Economy
 
 ## Synopsis
+In this report we aim to find the most harmful weather event in the United States between the years 1950 and 2011. As many serious consequences would follow from severe weather events, we will focus on their impact on public health and economy, and the data from U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database is used, which tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. As an exploratory analysis, we use the dataset to otained the top ten dangerous events in each aspect. We found that **Tornado** caused the highest fatalities and injuries across the United States. In addition, **Flood** has the greatest impact on economy. 
 
 ## Data Processing
+As the dataset is huge, to reduce the processing time we set *cache=TRUE*.
 
 ```r
 library(knitr)
 opts_chunk$set(cache=TRUE)
 ```
-
-As a first step, we load some packages required for this analysis.
-
-
-First we set the correct working directory.
+As a first step, we load some packages required for this analysis and set the correct working directory.
 
 ```r
+library(ggplot2)
+library(plyr)
 setwd("~/DataScience/Reproducible_research/")
 ```
 Then we can load data with *read.csv* function.
@@ -67,12 +58,7 @@ head(storm_data,3)
 ## 2     3042      8755          0          0              2
 ## 3     3340      8742          0          0              3
 ```
-
-```r
-#library(wordcloud)
-#wordcloud(as.character(unique(storm_data$EVTYPE)),random.order=FALSE)
-```
-With a close examination of the name of events stored in the "EVTYPE" columns, we found there are many repeated records, such as "WATERSPOUT/ TORNADO", "WATERSPOUT-TORNADO", "WATERSPOUT/TORNADO", which should correspond to the same event. So we replace all of the punctuation characters with a space.(Although there are lots of the preprocessing can be down with the event names, such as replace *tstm* with *thunderstorm*, we will leave them for further analysis.)
+With a close examination of the name of events stored in the "EVTYPE" columns, we found there are many repeated records, such as "WATERSPOUT/ TORNADO", "WATERSPOUT-TORNADO", "WATERSPOUT/TORNADO", which should correspond to the same event. So we replace all of the punctuation characters with a space.(Although there are still lots of the preprocessing can be down with the event names, such as replace *tstm* with *thunderstorm*, we will leave them for further analysis.)
 
 ```r
 ntypes<-length(unique(storm_data$EVTYPE))
@@ -106,12 +92,12 @@ a[889:891]
 type_names<-toupper(storm_data$EVTYPE)
 storm_data$EVTYPE<-gsub("[[:punct:]+]", " ", type_names)
 ```
+
 We define two functions. The *sumsort* function takes a string *typename* and a dataset as input and returns a data frame with two colunms. The first column is the event type corresponding to the *EVTYPE* column in the original dataset. In the second column, values in the original *typename* column are summed up by event types and sorted in descending order, as revealed by the function name.
 
 ```r
 # write a function to extract the data for different damage type
 sumsort<-function(typename,dataset){
-  #data_by_type<-aggregate(typename ~ EVTYPE,data=storm_data,FUN=sum,na.rm=TRUE)
   data_by_type<-aggregate(dataset[,typename]~dataset[,"EVTYPE"],FUN=sum,na.rm=TRUE)
   colnames(data_by_type)<-c("EVTYPE",typename)
   sort_type<-data_by_type[order(data_by_type[,typename],decreasing=TRUE),]
@@ -120,6 +106,7 @@ sumsort<-function(typename,dataset){
 The real amounts of property and crop damages, which correspond to columns named as "PROPDMG" and "CROPDMG" in the dataset, need to be ajusted by their magnitude shown in the "PROPDMGEXP" and "CROPDMGEXP" columns. The magnitudes are hundred("H"),thousand("K"), million("M") and billion("B"). So we define function *ecodamages* to convert the property and crop damages to the correct value and store them in the original position("PROPDMG" and "CROPDMG").
 
 ```r
+# convert damages to real amount using the multiplier provided
 ecodamages<-function(damgtype,damgexp,dataset){
   index1<-which(colnames(dataset)==toupper(damgtype))
   index2<-which(colnames(dataset)==toupper(damgexp))
@@ -141,6 +128,29 @@ new_data<-ecodamages("PROPDMG","PROPDMGEXP",new_data)
 sub_data<-new_data[,c("EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")]
 ```
 ## Results
+First we can look at which event occurs most frequently.
+
+```r
+event_freq<-as.data.frame(table(sub_data$EVTYPE))
+event_freq<-event_freq[order(event_freq[,"Freq"],decreasing=TRUE),]
+head(event_freq,10)
+```
+
+```
+##                   Var1   Freq
+## 209               HAIL 288661
+## 762          TSTM WIND 219942
+## 671  THUNDERSTORM WIND  82564
+## 741            TORNADO  60652
+## 138        FLASH FLOOD  54277
+## 154              FLOOD  25327
+## 697 THUNDERSTORM WINDS  20843
+## 314          HIGH WIND  20214
+## 410          LIGHTNING  15754
+## 270         HEAVY SNOW  15708
+```
+We find although the table shows the most frequent event is *HAIL*, but as *TSTM WIND*, *THUNDERSTROM WIND* and *THUNDERSTORM WINDS* all represent the same event, it should be the most common event.
+
 ### Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
 The following results shows the top 10 weather evenets that cause for the highest fatalities and injuries.
 
@@ -189,11 +199,14 @@ ggplot(fata_sum,aes(x=reorder(EVTYPE,-FATALITIES),y=FATALITIES,fill=EVTYPE))+lab
 
 ![plot of chunk fataplot](figure/fataplot-1.png) 
 
+Above figure shows the top 10 weather events that cause the most fatalities and the figure below shows the top 10 weather events that cause the most injuries across the United States in 1950-2011.
+
+
 ```r
 ggplot(injur_sum,aes(x=reorder(EVTYPE,-INJURIES),y=INJURIES,fill=EVTYPE))+labs(title="Injuries due to severe weather events\n in the U.S.(1950-2011)",x="Events",y="")+theme(axis.text.x=element_text(angle=45,hjust=1),legend.position="none")+geom_bar(stat="identity")
 ```
 
-![plot of chunk fataplot](figure/fataplot-2.png) 
+![plot of chunk injurplot](figure/injurplot-1.png) 
 
 From above analysis we find the most harmful weather events to population health is **TORNADO**, which has the highest fatalities and the highest injuries across the United States from 1950 to 2011.
 
@@ -264,8 +277,9 @@ eco_sum
 ```r
 library(reshape2)
 eco_sum<-melt(eco_sum,id.var="EVTYPE")
-ggplot(eco_sum,aes(x=reorder(EVTYPE,-value),y=value/10^9,fill=variable))+labs(title="Property and crop damages due to severe weather events\n in the U.S.(1950-2011)",x="Event names",y="Cost of damages(billions USD)")+theme(axis.text.x=element_text(angle=45,hjust=1))+geom_bar(stat="identity")
+ggplot(eco_sum,aes(x=reorder(EVTYPE,-value),y=value/10^9,fill=variable))+labs(title="Property and crop damages due to severe weather events\n in the U.S.(1950-2011)",x="Events",y="Cost of damages(billions USD)")+theme(axis.text.x=element_text(angle=45,hjust=1))+geom_bar(stat="identity")
 ```
 
-![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png) 
-Now from above graph we observe that **FLOOD** has the greatest economical cost, and the total damage caused by flood is way higher than the damage caused by other events.
+![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3-1.png) 
+
+The above graph shows the top 10 weather events that have the greatest impact on economy, including both property damages and crop damages. Now from above graph we observe that **FLOOD** has the greatest economical cost, and the total damage caused by flood is way higher than the damage caused by other events.
